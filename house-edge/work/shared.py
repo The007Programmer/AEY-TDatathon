@@ -1,6 +1,7 @@
-import sys; sys.path.insert(0,'work')
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
+import sys; sys.path.insert(0,str(ROOT/'work'))
 from common import *
-pr=pd.read_csv("submissions/main_v2/validation_predictions.csv").set_index("query_id")
+pr=pd.read_csv(str(ROOT/'submissions/main_v2/validation_predictions.csv')).set_index("query_id")
 t=pd.read_csv(P+"validation/targets.csv").set_index("query_id")
 q,H=load("validation"); qi=q.set_index("query_id")
 lg=lambda p: np.log(p/(1-p))

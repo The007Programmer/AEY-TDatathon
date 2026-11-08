@@ -1,5 +1,6 @@
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
 import sys, itertools, numpy as np, pandas as pd
-sys.path.insert(0,'./work')
+sys.path.insert(0,str(ROOT/'work'))
 from common import *
 from scipy.special import betaln, gammaln
 PAIRS=list(itertools.combinations(range(1,9),2))

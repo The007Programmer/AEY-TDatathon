@@ -1,9 +1,10 @@
-import sys, math; sys.path.insert(0,'./entry')
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
+import sys, math; sys.path.insert(0,str(ROOT/'entry'))
 import numpy as np, json, os
 from hemodel import load, _M, _B
 from multiprocessing import Pool
-cfg=json.load(open("./entry/config.json")); fam=cfg["size"]["fam"]
-D="./kit/public"
+cfg=json.load(open(str(ROOT/'entry/config.json'))); fam=cfg["size"]["fam"]
+D=str(ROOT/'kit/public')
 recs=[]
 for sp in ("train","validation","test"):
     q,H=load(os.path.join(D,sp))

@@ -1,7 +1,8 @@
-import sys; sys.path.insert(0,'work')
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
+import sys; sys.path.insert(0,str(ROOT/'work'))
 from common import *
 import numpy as np, pandas as pd
-pr=pd.read_csv("runs/entry_val.csv").set_index("query_id")
+pr=pd.read_csv(str(ROOT/'runs/entry_val.csv')).set_index("query_id")
 q,H=load("validation"); t=pd.read_csv(P+"validation/targets.csv").set_index("query_id"); c=pd.read_csv(P+"validation/conditions.csv").set_index("query_id")
 rows=[]
 for r in q.itertuples():

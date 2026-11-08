@@ -1,5 +1,6 @@
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
 import sys, itertools, numpy as np, pandas as pd
-sys.path.insert(0,'./work')
+sys.path.insert(0,str(ROOT/'work'))
 from common import *
 from scipy.special import betaln
 from size_model import size_lag
@@ -117,4 +118,4 @@ def run(sp="validation",size_kw={},**kw):
     return pd.DataFrame(res,columns=["query_id"]+PC)
 if __name__=="__main__":
     import time;t0=time.time(); pr=run(); print(time.time()-t0); report(pr,"cp2")
-    pr.to_csv("./work/v_cp2.csv",index=False)
+    pr.to_csv(str(ROOT/'work/v_cp2.csv'),index=False)

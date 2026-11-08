@@ -1,4 +1,5 @@
-import sys; sys.path.insert(0,'work')
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
+import sys; sys.path.insert(0,str(ROOT/'work'))
 from cp import *
 pr=run()
 t=pd.read_csv(P+"validation/targets.csv").set_index("query_id").loc[pr.query_id]

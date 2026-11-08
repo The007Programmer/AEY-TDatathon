@@ -1,4 +1,5 @@
-import sys; sys.path.insert(0,'work')
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
+import sys; sys.path.insert(0,str(ROOT/'work'))
 from common import *
 import numpy as np, pandas as pd, itertools
 sp=sys.argv[1] if len(sys.argv)>1 else "train"

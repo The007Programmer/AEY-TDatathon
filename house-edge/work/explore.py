@@ -1,5 +1,6 @@
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
 import pandas as pd, numpy as np
-P="kit/public/"
+P=str(ROOT/'kit/public')+'/'
 q=pd.read_csv(P+"validation/queries.csv"); t=pd.read_csv(P+"validation/targets.csv"); c=pd.read_csv(P+"validation/conditions.csv")
 d=q.merge(t.drop(columns="episode_id"),on="query_id").merge(c,on="query_id")
 pc=["p_0","p_1","p_2","p_5","p_20"]

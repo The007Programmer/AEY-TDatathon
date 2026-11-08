@@ -1,6 +1,7 @@
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
 # For drift/shared machines: with the chosen pair, look at the cell win rate over time (windows)
 import pandas as pd, numpy as np, itertools
-P="kit/public/"; sp="train"
+P=str(ROOT/'kit/public')+'/'; sp="train"
 q=pd.read_csv(P+sp+"/queries.csv"); c=pd.read_csv(P+sp+"/conditions.csv"); d=q.merge(c,on="query_id")
 h=pd.read_csv(P+sp+"/history.csv")
 H={k:dict(zip(g.tick,g.payout)) for k,g in h.groupby("machine_id")}

@@ -1,11 +1,12 @@
-import sys, json; sys.path.insert(0,'./entry'); sys.path.insert(0,'./work')
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
+import sys, json; sys.path.insert(0,str(ROOT/'entry')); sys.path.insert(0,str(ROOT/'work'))
 import hemodel, predict
 from common import report
 import pandas as pd, numpy as np
 from multiprocessing import Pool
 from collections import defaultdict
-q,H=hemodel.load("./kit/public/validation")
-win,size=predict.read_config("./entry/config.json")
+q,H=hemodel.load(str(ROOT/'kit/public/validation'))
+win,size=predict.read_config(str(ROOT/'entry/config.json'))
 eps=defaultdict(list)
 for r in q: eps[r["episode_id"]].append(r)
 def job(a):

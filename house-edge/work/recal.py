@@ -1,7 +1,8 @@
-import sys; sys.path.insert(0,'work')
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
+import sys; sys.path.insert(0,str(ROOT/'work'))
 from common import *
 from scipy.optimize import minimize
-pr=pd.read_csv("submissions/main_v2/validation_predictions.csv").set_index("query_id")
+pr=pd.read_csv(str(ROOT/'submissions/main_v2/validation_predictions.csv')).set_index("query_id")
 t=pd.read_csv(P+"validation/targets.csv").set_index("query_id"); q=pd.read_csv(P+"validation/queries.csv").set_index("query_id")
 idx=pr.index; lg=lambda p: np.log(p/(1-p))
 X=lg(np.clip(1-pr.p_0.values,1e-6,1-1e-6)); TW=1-t.loc[idx].p_0.values

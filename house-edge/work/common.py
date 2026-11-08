@@ -1,5 +1,6 @@
+import pathlib; ROOT = pathlib.Path(__file__).resolve().parents[1]
 import pandas as pd, numpy as np
-P="./kit/public/"
+P=str(ROOT/'kit/public')+'/'
 PC=["p_0","p_1","p_2","p_5","p_20"]; PAY=[0,1,2,5,20]
 def load(sp):
     q=pd.read_csv(P+sp+"/queries.csv"); h=pd.read_csv(P+sp+"/history.csv")
