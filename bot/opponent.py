@@ -129,3 +129,34 @@ def parse_history(obs) -> list:
         else:
             opp_bet = rec.street_total
     return events
+
+
+# Normal ranges, measured from the CFR blueprint playing itself (train/profile.py).
+# An opponent outside them is far from balanced, so exploiting it beats
+# playing the blueprint; inside them, the blueprint is the safer choice.
+BALANCED = {
+    (("pre", "facing"), "fold"): (0.15, 0.48),
+    (("post", "facing"), "fold"): (0.25, 0.62),
+    (("pre", "sb"), "fold"): (0.0, 0.45),
+    (("post", "open"), "raise"): (0.15, 0.55),
+    (("post", "facing"), "raise"): (0.0, 0.30),
+    (("pre", "facing"), "raise"): (0.05, 0.42),
+}
+MIN_HANDS = 60
+
+
+def exploit_reasons(model: dict) -> list:
+    """Why this opponent looks exploitable (empty list = looks balanced)."""
+    if is_zombie(model):
+        return ["zombie"]
+    if model["hands"] < MIN_HANDS:
+        return []
+    out = []
+    for (key, kind), (lo, hi) in BALANCED.items():
+        f = freq(model, key, kind)
+        if f < lo or f > hi:
+            out.append(f"{key[0]}-{key[1]}-{kind}={f:.2f}")
+    for g in ("pre", "post"):
+        if model["cal"][g][1] >= 8 and reliability(model, g) < 0.3:
+            out.append(f"{g}-unreliable")
+    return out
