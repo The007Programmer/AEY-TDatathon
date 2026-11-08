@@ -34,6 +34,17 @@ except Exception:          # blueprint is optional
 
 TIME_BANK = 8.0
 K_MIN = 96
+CHEAP_FRAC = 0.45       # past this share of the bank: blueprint with a tiny simulation
+EMERGENCY_FRAC = 0.75   # past this: no simulation at all
+K_CHEAP = 48
+
+
+def _cheap_default(obs) -> Action:
+    if obs.to_call == 0:
+        return Action.CHECK_CALL
+    if obs.to_call * 4 <= obs.pot and Action.CHECK_CALL in obs.legal_actions:
+        return Action.CHECK_CALL
+    return Action.FOLD if Action.FOLD in obs.legal_actions else Action.CHECK_CALL
 DEFAULTS = {
     "safety": 0.25,      # our own compute budget: 25% of the bank (network overhead is charged too)
     "k_max": 500,
@@ -153,6 +164,18 @@ def decide(obs, memory) -> Action:
 
     legal = obs.legal_actions
     street_n = len(obs.board)
+
+    # --- time-bank safety net (slow/contended CPU): degrade instead of timing out
+    spent = memory["spent"]
+    if spent > TIME_BANK * EMERGENCY_FRAC:
+        return _finish(obs, memory, events, _cheap_default(obs), t0, 1)
+    if spent > TIME_BANK * CHEAP_FRAC and _BP is not None and _BP.AVAILABLE:
+        p = _BP.probs(obs, memory["rng"], feats=_BP.features(obs, memory["rng"], K_CHEAP))
+        if p:
+            acts = list(p)
+            best = acts[int(memory["rng"].choice(len(acts), p=np.array([p[a] for a in acts])))]
+            if best in legal:
+                return _finish(obs, memory, events, best, t0, 1)
 
     bpm = int(memory["cfg"]["bp_mode"])
     if bpm and _BP is not None and _BP.AVAILABLE:
@@ -312,7 +335,7 @@ def hand_end(result, memory) -> None:
         elif kind == "check" and first_on_street and street == Street.RIVER and result.went_to_showdown:
             OM.record(model, ("post", "open"), "check")
 
-    if result.went_to_showdown and result.opp_hole:
+    if result.went_to_showdown and result.opp_hole and memory["spent"] < TIME_BANK * EMERGENCY_FRAC:
         _calibrate(result, memory)
     OM.decay(model)
     memory["spent"] += time.perf_counter() - t0

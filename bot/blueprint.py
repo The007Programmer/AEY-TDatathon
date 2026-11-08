@@ -19,7 +19,7 @@ from . import equity as EQ
 from .tables import DATA
 from .tree import Tree
 
-BP_PATH = os.path.join(DATA, "blueprint.npz")
+BP_PATH = os.environ.get("POKER_BP") or os.path.join(DATA, "blueprint.npz")
 AVAILABLE = os.path.exists(BP_PATH)
 if AVAILABLE:
     _bp = np.load(BP_PATH)
