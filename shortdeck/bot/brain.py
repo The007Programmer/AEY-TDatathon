@@ -41,8 +41,12 @@ DEFAULTS = {
     "rf_oop": 0.88,      # equity realisation before the river when out of position
     "rf_ip": 1.0,
     "rf_mode": 0,
-    "bp_mode": 0,        # 0 off, 1 blueprint preflop, 2 blueprint for the first bp_hands hands, 3 both
+    "bp_mode": 8,        # bits: 1 blueprint preflop, 2 blueprint first bp_hands hands,
+                         #       4 hybrid: blueprint unless exploiting gains > bp_margin * pot
     "bp_hands": 150,
+    # bit 8: auto - blueprint while the opponent looks balanced, hybrid/exploit once it doesn't
+    "bp_margin": 0.05,
+    "bp_min_reach": 0.0,  # infosets the blueprint rarely trained -> exploit engine
 }
 TAU = DEFAULTS["tau"]
 BOARD_N = {Street.PREFLOP: 0, Street.FLOP: 3, Street.TURN: 4, Street.RIVER: 5}
@@ -235,6 +239,32 @@ def decide(obs, memory) -> Action:
     best = max(evs, key=evs.get)
     if best not in legal:
         best = Action.CHECK_CALL
+
+    use_hybrid = bool(bpm & 4)
+    margin = memory["cfg"]["bp_margin"]
+    if bpm & 8:
+        reasons = OM.exploit_reasons(model)
+        memory["exploiting"] = bool(reasons)
+        use_hybrid = True
+        if not reasons:
+            margin = 1e9                      # balanced opponent: pure blueprint
+    if use_hybrid and _BP is not None and _BP.AVAILABLE and not OM.is_zombie(model):
+        ehs = float(sim.outcome.mean())
+        made = sim.my_made if sim.my_made is not None else ehs
+        if obs.street == Street.PREFLOP:
+            ehs = made = EQ.preflop_pct(obs.hole_cards)
+        node = _BP.node_of(obs)
+        if node is not None:
+            b = int(_BP.BK.bucket(int(obs.street), ehs, made, _BP.EDGES))
+            if _BP.REACH[node, b] >= memory["cfg"]["bp_min_reach"]:
+                p = _BP.probs(obs, memory["rng"], feats=(ehs, made))
+                ev_bp = sum(p[a] * evs.get(a, 0.0) for a in p)
+                memory["hyb"] = memory.get("hyb", 0) + 1
+                if evs[best] - ev_bp <= margin * P:
+                    acts = list(p)
+                    best = acts[int(memory["rng"].choice(len(acts), p=np.array([p[a] for a in acts])))]
+                else:
+                    memory["hyb_exp"] = memory.get("hyb_exp", 0) + 1
     return _finish(obs, memory, events, best, t0, k)
 
 

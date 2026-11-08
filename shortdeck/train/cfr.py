@@ -10,7 +10,8 @@ scatter-added per bucket. Several worker processes share the regret table
 
 Output: data/blueprint.npz with
     strat  (n_nodes, NB, 4) float16  average strategy (rows of non-decision nodes are 0)
-    edges  (4, NB-1)        float32  bucket edges per street (street 0 = preflop percentile)
+    reach  (n_nodes, NB)    float32  how much training reached each infoset (confidence)
+    edge_* bucket edges (see bot/buckets.py)
 
 Run:  .venv/bin/python -m train.cfr train/data/deals_4m.npz --epochs 3 --batch 16384 --workers 12
 """
@@ -27,27 +28,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from bot.tree import Tree  # noqa: E402
-
-NB = 32
+from bot.buckets import NB, make_edges, bucketize  # noqa: E402
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "blueprint.npz")
-
-
-def make_edges(feat: np.ndarray) -> np.ndarray:
-    edges = np.zeros((4, NB - 1), dtype=np.float32)
-    qs = np.arange(1, NB) / NB
-    edges[0] = qs                                       # preflop percentile is uniform already
-    for s in (1, 2, 3):
-        x = feat[:, :, s].astype(np.float32).ravel()
-        edges[s] = np.quantile(x, qs)
-    return edges
-
-
-def bucketize(feat: np.ndarray, edges: np.ndarray) -> np.ndarray:
-    """feat (N,2,4) -> buckets (N,2,4) int16"""
-    b = np.zeros(feat.shape, dtype=np.int16)
-    for s in range(4):
-        b[:, :, s] = np.searchsorted(edges[s], feat[:, :, s].astype(np.float32), side="right")
-    return b
 
 
 class Flat:
@@ -124,8 +106,7 @@ def worker(wid, args, flat_args, shm_names, counter, total_batches):
             return v
 
         walk(0, np.ones(batch, dtype=np.float32), np.ones(batch, dtype=np.float32))
-        if wid == 0 and t % 10 == 0:
-            print(f"  batch {t}/{total_batches}", flush=True)
+        pass
 
 
 def main():
@@ -135,12 +116,13 @@ def main():
     ap.add_argument("--batch", type=int, default=8192)
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--out", default=OUT)
+    ap.add_argument("--checkpoint", type=float, default=300.0)
     a = ap.parse_args()
 
     d = np.load(a.deals)
-    feat = d["feat"]
-    edges = make_edges(feat)
-    np.save(a.deals.replace(".npz", ".buckets.npy"), bucketize(feat, edges))
+    feat, made = d["feat"], d["made"]
+    edges = make_edges(feat, made)
+    np.save(a.deals.replace(".npz", ".buckets.npy"), bucketize(feat, made, edges))
     tree = Tree()
     n = len(tree)
     size = n * NB * 4 * 4
@@ -157,10 +139,26 @@ def main():
              for w in range(a.workers)]
     for p in procs:
         p.start()
+    last_ck = time.time()
+    while any(p.is_alive() for p in procs):
+        time.sleep(30)
+        done = counter.value
+        el = time.time() - t
+        print(f"  {min(done, a.batches)}/{a.batches} batches  {el:.0f}s  "
+              f"{done / max(el, 1) * 60:.1f} batches/min", flush=True)
+        if time.time() - last_ck > a.checkpoint:
+            save(tree, S, edges, a.out)
+            print(f"  checkpoint saved at batch {done}", flush=True)
+            last_ck = time.time()
     for p in procs:
         p.join()
     print(f"trained {a.batches} x {a.batch} deals in {time.time() - t:.0f}s")
+    save(tree, S, edges, a.out)
+    shmR.close(); shmR.unlink(); shmS.close(); shmS.unlink()
 
+
+def save(tree, S, edges, out):
+    n = len(tree)
     strat = np.zeros((n, NB, 4), dtype=np.float32)
     for i in range(n):
         if tree.kind[i] != 0:
@@ -170,9 +168,13 @@ def main():
         tot = s.sum(axis=1, keepdims=True)
         s = np.where(tot > 0, s / np.where(tot > 0, tot, 1), 1.0 / len(acts))
         strat[i][:, acts] = s
-    np.savez_compressed(a.out, strat=strat.astype(np.float16), edges=edges)
-    print("saved", a.out, os.path.getsize(a.out) // 1024, "KB")
-    shmR.close(); shmR.unlink(); shmS.close(); shmS.unlink()
+    reach = S.sum(axis=2)                                     # reach-weighted visits
+    tmp = out + ".tmp.npz"
+    np.savez_compressed(tmp, strat=strat.astype(np.float16),
+                        reach=reach.astype(np.float32),
+                        **{"edge_" + k: v for k, v in edges.items()})
+    os.replace(tmp, out)
+    print("saved", out, os.path.getsize(out) // 1024, "KB", flush=True)
 
 
 if __name__ == "__main__":

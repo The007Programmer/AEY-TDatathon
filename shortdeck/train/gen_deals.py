@@ -36,18 +36,20 @@ def chunk(args):
     n, seed = args
     rng = np.random.default_rng(seed)
     feat = np.zeros((n, 2, 4), dtype=np.float16)
+    made = np.zeros((n, 2, 4), dtype=np.float16)
+    cards_all = np.zeros((n, 15), dtype=np.uint8)
     out = np.zeros(n, dtype=np.float16)
     for i in range(n):
         cards = rng.permutation(36)[:15]
+        cards_all[i] = cards
         h0, h1, board = cards[:5], cards[5:10], cards[10:]
         for p, h in ((0, h0), (1, h1)):
-            feat[i, p, 0] = EQ.preflop_pct(h)
-            feat[i, p, 1] = ehs(rng, h, board[:3])
-            feat[i, p, 2] = ehs(rng, h, board[:4])
-            feat[i, p, 3] = ehs(rng, h, board)
+            feat[i, p, 0] = made[i, p, 0] = EQ.preflop_pct(h)
+            for s, nb in ((1, 3), (2, 4), (3, 5)):
+                feat[i, p, s], made[i, p, s] = EQ.ehs_made(rng, h, board[:nb], K_FEAT)
         r0, r1 = T.omaha_rank(h0, board), T.omaha_rank(h1, board)
         out[i] = 1.0 if r0 > r1 else 0.5 if r0 == r1 else 0.0
-    return feat, out
+    return feat, made, cards_all, out
 
 
 def main():
@@ -59,8 +61,10 @@ def main():
     with Pool(max(1, os.cpu_count() - 2)) as pool:
         parts = pool.map(chunk, jobs, chunksize=1)
     feat = np.concatenate([p[0] for p in parts])
-    out = np.concatenate([p[1] for p in parts])
-    np.savez(path, feat=feat, out=out)
+    made = np.concatenate([p[1] for p in parts])
+    cards = np.concatenate([p[2] for p in parts])
+    out = np.concatenate([p[3] for p in parts])
+    np.savez(path, feat=feat, made=made, cards=cards, out=out)
     print(f"{n} deals in {time.time() - t:.0f}s -> {path}")
 
 

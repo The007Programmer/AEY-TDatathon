@@ -51,7 +51,7 @@ def preflop_eq(hole) -> float:
 
 class Sim:
     """Result of one simulation (all arrays length K)."""
-    __slots__ = ("outcome", "pf_pct", "street_pct", "draw", "k")
+    __slots__ = ("outcome", "pf_pct", "street_pct", "street_rank", "draw", "k", "my_made")
 
 
 def _made_rank(pair_off: np.ndarray, board_cards) -> np.ndarray:
@@ -102,12 +102,19 @@ def simulate(rng: np.random.Generator, hole, board, k: int, need_streets=()) -> 
     s.outcome = (mine > theirs) + 0.5 * (mine == theirs)
     s.pf_pct = PF_PCT[combo5_index(opp)].astype(np.float64)
     s.street_pct = {}
+    s.street_rank = {}
     s.draw = {}
+    s.my_made = None
     for n_board in need_streets:             # 3, 4, 5 = flop, turn, river strengths
         if n_board > len(board) or n_board < 3:
             continue
         vis = board[:n_board]
-        s.street_pct[n_board] = _pct(_made_rank(opp_pairs, vis))
+        rk = _made_rank(opp_pairs, vis)
+        s.street_rank[n_board] = rk
+        s.street_pct[n_board] = _pct(rk)
+        if n_board == len(board) and n_board < 5:
+            mine_now = _made_rank(T.hole_pair_idx(hole)[None, :], vis)[0]
+            s.my_made = float((rk < mine_now).mean() + 0.5 * (rk == mine_now).mean())
         if n_board < 5:
             suits_board = np.bincount(vis & 3, minlength=4)
             hole_suits = np.stack([(opp & 3) == su for su in range(4)], axis=2).sum(axis=1)
@@ -130,3 +137,26 @@ def weighted_quantile(x: np.ndarray, w: np.ndarray, q: float) -> float:
         return float(np.quantile(x, q))
     i = int(np.searchsorted(cw, q * cw[-1]))
     return float(x[order[min(i, len(x) - 1)]])
+
+
+def ehs_made(rng: np.random.Generator, hole, board, k: int) -> tuple[float, float]:
+    """(equity vs a random hand, made-hand percentile on the visible board).
+
+    The second number separates made hands (made >= ehs) from draws
+    (ehs > made): two hands with the same equity play very differently.
+    """
+    hole = np.asarray(hole, dtype=np.int64)
+    board = np.asarray(board, dtype=np.int64)
+    sim = simulate(rng, hole, board, k)
+    ehs = float(sim.outcome.mean())
+    if len(board) >= 5:
+        return ehs, ehs
+    dead = np.zeros(36, dtype=bool)
+    dead[hole] = True
+    dead[board] = True
+    rest = np.flatnonzero(~dead)
+    opp = rest[np.argsort(rng.random((k, len(rest))), axis=1)[:, :5]]
+    theirs = _made_rank(T.batch_pair_idx(opp), board)
+    mine = _made_rank(T.hole_pair_idx(hole)[None, :], board)[0]
+    made = float((theirs < mine).mean() + 0.5 * (theirs == mine).mean())
+    return ehs, made
