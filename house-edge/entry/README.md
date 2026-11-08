@@ -1,5 +1,6 @@
 # House Edge entry: Bayesian lag-pair change-point forecaster
 
+- Team ID: AEY Inc.
 - Round: main
 - Season ID: 5fffdc4d0c700bbf61c3f911
 - Environment: `python` image (Python 3.13) + `numpy==2.5.4` (requirements.txt). No other dependencies.
