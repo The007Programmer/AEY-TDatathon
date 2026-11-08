@@ -117,6 +117,8 @@ def main():
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--checkpoint", type=float, default=300.0)
+    ap.add_argument("--state", default=None, help="save/resume raw regrets+sums here")
+    ap.add_argument("--t0", type=int, default=0, help="iteration offset when resuming")
     a = ap.parse_args()
 
     d = np.load(a.deals)
@@ -132,7 +134,13 @@ def main():
     S = np.ndarray((n, NB, 4), dtype=np.float32, buffer=shmS.buf)
     R[:] = 0
     S[:] = 0
-    counter = Value("i", 0)
+    if a.state and os.path.exists(a.state):
+        st = np.load(a.state)
+        R[:] = st["R"]
+        S[:] = st["S"]
+        print("resumed from", a.state, flush=True)
+    counter = Value("i", a.t0)
+    a.batches += a.t0
     t = time.time()
     procs = [Process(target=worker, args=(w, (a.deals, a.batch, 77 + w), None,
                                           (shmR.name, shmS.name), counter, a.batches))
@@ -148,12 +156,16 @@ def main():
               f"{done / max(el, 1) * 60:.1f} batches/min", flush=True)
         if time.time() - last_ck > a.checkpoint:
             save(tree, S, edges, a.out)
+            if a.state:
+                np.savez(a.state, R=R, S=S)
             print(f"  checkpoint saved at batch {done}", flush=True)
             last_ck = time.time()
     for p in procs:
         p.join()
     print(f"trained {a.batches} x {a.batch} deals in {time.time() - t:.0f}s")
     save(tree, S, edges, a.out)
+    if a.state:
+        np.savez(a.state, R=R, S=S)
     shmR.close(); shmR.unlink(); shmS.close(); shmS.unlink()
 
 
